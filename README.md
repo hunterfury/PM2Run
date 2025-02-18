@@ -1,7 +1,5 @@
 # Webhook Server for GitHub Deployment 🚀
-npm install pm2 -g
 
-npm run start
 ## 🔥 คุณสมบัติหลัก
 ✅ รับ **Webhook** จาก GitHub และอัปเดตโค้ดอัตโนมัติ
 
