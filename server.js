@@ -1,21 +1,24 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const simpleGit = require('simple-git');
-const { exec } = require('child_process');
+const {
+    exec
+} = require('child_process');
 const chokidar = require('chokidar');
 const fs = require('fs');
 const ini = require('ini');
 const path = require('path');
 
 const REPO_DIR = path.join(__dirname, 'repos');
-const APP_DIR = '/apps';  // Directory where repos are stored
+const APP_DIR = '/apps'; // Directory where repos are stored
 const repos = {};
 
 // Ensure /apps directory exists
 if (!fs.existsSync(APP_DIR)) {
-    fs.mkdirSync(APP_DIR, { recursive: true });
+    fs.mkdirSync(APP_DIR, {
+        recursive: true
+    });
 }
-
 const loadSettings = () => {
     fs.readdirSync(REPO_DIR).forEach(file => {
         if (file.endsWith('.ini')) {
@@ -41,7 +44,9 @@ const runCommandsSequentially = (commands, repoDir, callback) => {
         const cmd = commands[index];
         console.log(`Running: ${cmd} in ${repoDir}`);
 
-        exec(cmd, { cwd: repoDir }, (err, stdout, stderr) => {
+        exec(cmd, {
+            cwd: repoDir
+        }, (err, stdout, stderr) => {
             if (err) {
                 console.error(`Error running ${cmd}:`, err.message);
                 // return;
@@ -61,24 +66,36 @@ const pullOrCloneRepo = (repoName, repoConfig, callback) => {
     const gitUrl = repoConfig.repo.replace('https://', `https://${repoConfig.token}@`);
 
     if (!fs.existsSync(repoDir)) {
-        fs.mkdirSync(repoDir, { recursive: true });
+        fs.mkdirSync(repoDir, {
+            recursive: true
+        });
     }
 
     if (fs.existsSync(path.join(repoDir, '.git'))) {
         console.log(`Pulling latest changes for ${repoName}...`);
         const git = simpleGit(repoDir);
-        git.pull((err, update) => {
-            if (err) console.error(`Git pull error: ${err.message}`);
-            else if (update && update.summary.changes) {
-                console.log(`${repoName} updated.`);
-                runCommandsSequentially(repoConfig.run, repoDir, callback);
-            }else {
-                runCommandsSequentially(repoConfig.run, repoDir, callback);
+        git.reset('hard', (resetErr) => {
+            if (resetErr) {
+                console.error(`Git reset error: ${resetErr.message}`);
+                return;
             }
+            git.pull((err, update) => {
+                if (err) console.error(`Git pull error: ${err.message}`);
+                else if (update && update.summary.changes) {
+                    console.log(`${repoName} updated.`);
+                    runCommandsSequentially(repoConfig.run, repoDir, callback);
+                } else {
+                    runCommandsSequentially(repoConfig.run, repoDir, callback);
+                }
+            });
         });
+
     } else {
         console.log(`Removing invalid directory: ${repoDir}`);
-        fs.rmSync(repoDir, { recursive: true, force: true });
+        fs.rmSync(repoDir, {
+            recursive: true,
+            force: true
+        });
 
         console.log(`Cloning ${repoName} into ${repoDir}...`);
         simpleGit().clone(gitUrl, repoDir, {}, (err) => {
@@ -116,7 +133,9 @@ const app = express();
 app.use(bodyParser.json());
 
 app.post('/webhook', (req, res) => {
-    const { repository } = req.body;
+    const {
+        repository
+    } = req.body;
 
     if (!repository) {
         return res.status(400).send('Invalid webhook payload');
