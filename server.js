@@ -28,6 +28,7 @@ const loadSettings = () => {
             repos[projectName] = {
                 repo: config.repo,
                 token: config.token,
+                branch: config.branch,
                 run: config.run ? JSON.parse(config.run.replace(/'/g, '"')) : []
             };
         }
