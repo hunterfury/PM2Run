@@ -150,11 +150,9 @@ const app = express();
 app.use(bodyParser.json());
 
 app.post('/webhook', (req, res) => {
-    const {
-        repository
-    } = req.body;
+    const { repository, ref } = req.body;
 
-    if (!repository) {
+    if (!repository || !ref) {
         return res.status(400).send('Invalid webhook payload');
     }
 
@@ -165,12 +163,23 @@ app.post('/webhook', (req, res) => {
         return res.status(404).send(`No config found for ${repoName}`);
     }
 
+    // ดึงชื่อ branch จาก ref เช่น 'refs/heads/main' => 'main'
+    const branch = ref.replace('refs/heads/', '');
+    const targetBranch = repoConfig.branch || 'main';
+
+    if (branch !== targetBranch) {
+        console.log(`Branch ${branch} does not match target branch ${targetBranch}. Skipping pull.`);
+        return res.send(`No update needed for ${repoName} on branch ${branch}`);
+    }
+
+    console.log(`Branch ${branch} matched. Pulling updates for ${repoName}...`);
     pullOrCloneRepo(repoName, repoConfig, () => {
         console.log(`${repoName} updated from webhook.`);
     });
 
-    res.send(`Processing update for ${repoName}`);
+    res.send(`Processing update for ${repoName} on branch ${branch}`);
 });
+
 
 // Watch for changes in /repos directory
 chokidar.watch(`${REPO_DIR}/*.ini`).on('change', (filePath) => {
