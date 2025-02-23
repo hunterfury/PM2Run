@@ -64,6 +64,7 @@ const runCommandsSequentially = (commands, repoDir, callback) => {
 const pullOrCloneRepo = (repoName, repoConfig, callback) => {
     const repoDir = path.join(APP_DIR, repoName);
     const gitUrl = repoConfig.repo.replace('https://', `https://${repoConfig.token}@`);
+    const branch = repoConfig.branch || 'main'; // ถ้าไม่ระบุ branch จะใช้ 'main' เป็นค่าเริ่มต้น
 
     if (!fs.existsSync(repoDir)) {
         fs.mkdirSync(repoDir, {
@@ -72,19 +73,33 @@ const pullOrCloneRepo = (repoName, repoConfig, callback) => {
     }
 
     if (fs.existsSync(path.join(repoDir, '.git'))) {
-        console.log(`Pulling latest changes for ${repoName}...`);
+        console.log(`Pulling latest changes for ${repoName} on branch ${branch}...`);
         const git = simpleGit(repoDir);
-        git.reset('hard', (resetErr) => {
-            if (resetErr) {
-                console.error(`Git reset error: ${resetErr.message}`);
+        git.fetch('origin', branch, (fetchErr) => {
+            if (fetchErr) {
+                console.error(`Git fetch error: ${fetchErr.message}`);
                 return;
             }
-            git.pull((err, update) => {
-                if (err) console.error(`Git pull error: ${err.message}`);
-                else if (update && update.summary.changes) {
-                    console.log(`${repoName} updated.`);
-                    runCommandsSequentially(repoConfig.run, repoDir, callback);
+
+            git.status((statusErr, status) => {
+                if (statusErr) {
+                    console.error(`Git status error: ${statusErr.message}`);
+                    return;
+                }
+
+                if (status.behind > 0) {
+                    console.log(`${repoName} is behind by ${status.behind} commits. Pulling changes...`);
+                    git.pull('origin', branch, (err, update) => {
+                        if (err) console.error(`Git pull error: ${err.message}`);
+                        else if (update && update.summary.changes) {
+                            console.log(`${repoName} updated.`);
+                            runCommandsSequentially(repoConfig.run, repoDir, callback);
+                        } else {
+                            runCommandsSequentially(repoConfig.run, repoDir, callback);
+                        }
+                    });
                 } else {
+                    console.log(`${repoName} is already up to date on branch ${branch}.`);
                     runCommandsSequentially(repoConfig.run, repoDir, callback);
                 }
             });
@@ -97,14 +112,15 @@ const pullOrCloneRepo = (repoName, repoConfig, callback) => {
             force: true
         });
 
-        console.log(`Cloning ${repoName} into ${repoDir}...`);
-        simpleGit().clone(gitUrl, repoDir, {}, (err) => {
+        console.log(`Cloning ${repoName} into ${repoDir} on branch ${branch}...`);
+        simpleGit().clone(gitUrl, repoDir, ['-b', branch], (err) => {
             if (err) return console.error(`Git clone error: ${err.message}`);
             console.log(`${repoName} cloned.`);
             runCommandsSequentially(repoConfig.run, repoDir, callback);
         });
     }
 };
+
 
 const startAllApps = () => {
     console.log('Starting all apps...');
